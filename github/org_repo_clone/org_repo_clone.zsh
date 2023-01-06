@@ -42,36 +42,16 @@ org=""
 repo_types="all"
 
 GITHUB_API_ROOT="https://api.github.com"
-	case "${o}" in
-		b)
-			bare="--bare"
-			;;
-		c)
-			clean_destdir=1
-			;;
-		d)
-			destdir="${OPTARG}"
-			;;
-		m)
-			mirror="--mirror"
-			;;
-		o)
-			org="${OPTARG}"
-			;;
-		t)
-			repo_types="${OPTARG}"
-			;;
-		*)
-			usage
-			;;
-	esac
 
 function usage() {
-	echo "USAGE: ${myself} [-b] [-c] [-m] [-t] -d DESTDIR -o ORGANIZATION"
+	echo "USAGE: ${myself} [-b] [-c] [-m] [-p PAT ] [-t] -d DESTDIR -o ORGANIZATION"
 	echo "Arguments:"
 	echo "\t-b:\tClone as a bare repo"
 	echo "\t-c:\tClean the destination directory"
+	echo "\t-d:\tDestination directory"
 	echo "\t-m:\tPass --mirror to git clone"
+	echo "\t-o:\tOrganization"
+	echo "\t-p:\tGitHub Personal Access Token (PAT)"
 	echo "\t-t:\tSpecify which repo types to fetch"
 	exit 0
 }
@@ -85,6 +65,7 @@ function clone_repo() {
 
 	(
 		set -ex
+
 		cd ${destdir}
 		echo "[*] Cloning ${repo}"
 		git clone \
@@ -93,15 +74,25 @@ function clone_repo() {
 			${repo}
 	)
 
-	return 0
+	return ${?}
 }
 
 function get_total_number_repos() {
 	local nrepos
 
-	nrepos=$(curl "${GITHUB_API_ROOT}/orgs/${org}" | jq -r '.public_repos + .total_private_repos')
+	nrepos=$(curl -H "@${destdir}/headers.txt" "${GITHUB_API_ROOT}/orgs/${org}" | jq -r '.public_repos + .total_private_repos')
 
 	echo ${nrepos}
+
+	return 0
+}
+
+function prepare_headers() {
+	truncate -s 0 ${destdir}/headers.txt
+
+	if [ ! -z "${github_pat}" ]; then
+		echo "Authorization: Bearer ${github_pat}" > ${destdir}/headers.txt
+	fi
 
 	return 0
 }
@@ -120,7 +111,7 @@ function fetch_org() {
 		argstring="${argstring}type=${repo_types}&"
 		argstring="${argstring}page=$((${pagerpos} + 1))&"
 
-		curl "${GITHUB_API_ROOT}/orgs/${org}/repos${argstring}" | jq -r '.[].clone_url' | while read -n repo; do
+		curl -H "@${destdir}/headers.txt" "${GITHUB_API_ROOT}/orgs/${org}/repos${argstring}" | jq -r '.[].clone_url' | while read -n repo; do
 			clone_repo "${repo}" || return 1
 		done
 	done
@@ -128,7 +119,7 @@ function fetch_org() {
 	return 0
 }
 
-while getopts "bcd:mo:t:" o; do
+while getopts "bcd:mo:p:t:" o; do
 	case "${o}" in
 		b)
 			bare="--bare"
@@ -144,6 +135,9 @@ while getopts "bcd:mo:t:" o; do
 			;;
 		o)
 			org="${OPTARG}"
+			;;
+		p)
+			github_pat="${OPTARG}"
 			;;
 		t)
 			repo_types="${OPTARG}"
@@ -172,7 +166,7 @@ if [ -z "${org}" ]; then
 	exit 1
 fi
 
-usage
+prepare_headers
 
 echo "[*] Total number of repos: $(get_total_number_repos)"
 
