@@ -23,16 +23,58 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# Dependencies:
+#
+# 1. ZSH
+# 2. git
+# 3. jq
+
 #set -ex
+
+myself="${0}"
 
 bare=""
 clean_destdir=0
 destdir=""
+github_pat=""
 mirror=""
 org=""
 repo_types="all"
 
 GITHUB_API_ROOT="https://api.github.com"
+	case "${o}" in
+		b)
+			bare="--bare"
+			;;
+		c)
+			clean_destdir=1
+			;;
+		d)
+			destdir="${OPTARG}"
+			;;
+		m)
+			mirror="--mirror"
+			;;
+		o)
+			org="${OPTARG}"
+			;;
+		t)
+			repo_types="${OPTARG}"
+			;;
+		*)
+			usage
+			;;
+	esac
+
+function usage() {
+	echo "USAGE: ${myself} [-b] [-c] [-m] [-t] -d DESTDIR -o ORGANIZATION"
+	echo "Arguments:"
+	echo "\t-b:\tClone as a bare repo"
+	echo "\t-c:\tClean the destination directory"
+	echo "\t-m:\tPass --mirror to git clone"
+	echo "\t-t:\tSpecify which repo types to fetch"
+	exit 0
+}
 
 function clone_repo() {
 	repo="${1}"
@@ -129,6 +171,8 @@ if [ -z "${org}" ]; then
 	echo "[-] org required." 1>&2
 	exit 1
 fi
+
+usage
 
 echo "[*] Total number of repos: $(get_total_number_repos)"
 
