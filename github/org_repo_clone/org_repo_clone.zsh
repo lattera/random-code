@@ -37,7 +37,7 @@ function fetch_org() {
 	return 0
 }
 
-while getopts "bd:m:o:" o; do
+while getopts "bd:mo:" o; do
 	case "${o}" in
 		b)
 			bare="--bare"
