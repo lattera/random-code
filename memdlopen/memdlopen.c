@@ -30,6 +30,7 @@
 
 #include <dlfcn.h>
 
+#include <sys/capsicum.h>
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -56,6 +57,11 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (cap_enter()) {
+		perror("cap_enter");
+		exit(1);
+	}
+
 	buf = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (buf == MAP_FAILED) {
 		perror("mmap");
@@ -75,6 +81,7 @@ main(int argc, char *argv[])
 
 	write(mfd, buf, sb.st_size);
 	lseek(mfd, 0, SEEK_SET);
+	printf("mFD: %i\n", mfd);
 
 	munmap(buf, sb.st_size);
 	close(fd);
@@ -85,7 +92,36 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+	memset(&sb, 0, sizeof(sb));
+	if (fstat(mfd, &sb)) {
+		perror("fstat(mfd)");
+		exit(1);
+	}
+
+	printf("Type: ");
+	if (S_ISFIFO(sb.st_mode)) {
+		printf("FISO\n");
+	} else if (S_ISCHR(sb.st_mode)) {
+		printf("CHR\n");
+	} else if (S_ISDIR(sb.st_mode)) {
+		printf("DIR\n");
+	} else if (S_ISBLK(sb.st_mode)) {
+		printf("BLK\n");
+	} else if (S_ISREG(sb.st_mode)) {
+		printf("REG\n");
+	} else if (S_ISLNK(sb.st_mode)) {
+		printf("LNK\n");
+	} else if (S_ISSOCK(sb.st_mode)) {
+		printf("SOCK\n");
+	} else if (S_ISWHT(sb.st_mode)) {
+		printf("WHT\n");
+	}
+	printf("DEV: %zu\n", sb.st_dev);
+	printf("INODE: %zu\n", sb.st_ino);
+
 	close(mfd);
+
+	shm_unlink("memfd:memdlopen");
 
 	fn = dlsym(handle, "pcap_lib_version");
 
